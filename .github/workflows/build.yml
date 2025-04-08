@@ -21,10 +21,10 @@ jobs:
         dotnet-version: ${{ matrix.dotnet-version }}
 
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore .\SimpleRegionApp\SimpleRegionApp\
 
     - name: Publish application
-      run: dotnet publish .\SimpleRegionApp\SimpleRegionApp.API\ -c Release -r linux-x64 -o out
+      run: dotnet publish .\SimpleRegionApp\SimpleRegionApp\\SimpleRegionApp.API\ -c Release -r linux-x64 -o out
 
     - name: Upload artifact to GitHub
       uses: actions/upload-artifact@v4
