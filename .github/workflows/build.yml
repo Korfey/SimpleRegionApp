@@ -8,24 +8,26 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    strategy: 
+        matrix:
+            dotnet-version: '8.0.x'
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Set up .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0'
+        dotnet-version: ${{ matrix.dotnet-version }}
 
     - name: Restore dependencies
       run: dotnet restore
 
     - name: Publish application
-      run: dotnet publish .\SimpleRegionApp.API\ -c Release -r linux-x64 -o out
+      run: dotnet publish .\SimpleRegionApp\SimpleRegionApp.API\ -c Release -r linux-x64 -o out
 
     - name: Upload artifact to GitHub
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: published-artifacts
         path: out/
