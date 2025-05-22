@@ -1,3 +1,9 @@
+using Amazon;
+using Amazon.S3;
+using Microsoft.EntityFrameworkCore;
+using SimpleRegionApp.API.Core;
+using SimpleRegionApp.API.Data;
+
 namespace SimpleRegionApp.API
 {
     public class Program
@@ -6,7 +12,21 @@ namespace SimpleRegionApp.API
         {
             var builder = WebApplication.CreateBuilder(args);
             
-            builder.Services.AddControllers();
+            var services = builder.Services;
+            var config = builder.Configuration;
+            var dbEndpoint = Environment.GetEnvironmentVariable("DB_ENDPOINT")
+                 ?? throw new Exception("DB_ENDPOINT not set");
+            var password = Environment.GetEnvironmentVariable("DB_PASSWORD")
+                 ?? throw new Exception("DB_PASSWORD not set");
+
+            services.AddControllers();
+            services.AddDbContextPool<SimpleDbContext>(options =>
+                options.UseSqlServer(Authentication.GetConnectionString(dbEndpoint, password)));
+
+            services.AddSingleton<IAmazonS3>(sp =>
+            {
+                return new AmazonS3Client(RegionEndpoint.USEast1);
+            });
 
             var app = builder.Build();
             
@@ -14,4 +34,5 @@ namespace SimpleRegionApp.API
             app.Run();
         }
     }
+    
 }
