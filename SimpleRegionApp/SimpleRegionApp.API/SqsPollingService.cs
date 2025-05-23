@@ -26,7 +26,7 @@ public class SqsPollingService(
             {
                 QueueUrl = SqsUrl,
                 MaxNumberOfMessages = 10,
-                WaitTimeSeconds = 40
+                WaitTimeSeconds = 20
             };
 
             var response = await sqsClient.ReceiveMessageAsync(receiveRequest, stoppingToken);
