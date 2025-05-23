@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using SimpleRegionApp.API.Models.Mappers;
 using SimpleRegionApp.Models;
 using Amazon.S3;
+using Amazon.SQS;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -16,15 +17,19 @@ public class ImagesController : ControllerBase
     private readonly string s3Path;
     private readonly SimpleDbContext dbContext;
     private readonly IAmazonS3 s3Client;
+    private readonly IAmazonSQS amazonSQS;
     private readonly S3BucketUtils s3BucketUtils;
+    private readonly SqsUtils sqsUtils;
 
-    public ImagesController(IConfiguration configuration, SimpleDbContext dbContext, IAmazonS3 s3Client)
+    public ImagesController(IConfiguration configuration, SimpleDbContext dbContext, IAmazonS3 s3Client, IAmazonSQS amazonSQS)
     {
         s3Path = configuration["s3Bucket"] ?? throw new Exception("No S3Path found in appsettings");
 
         this.s3Client = s3Client;
+        this.amazonSQS = amazonSQS;
         this.dbContext = dbContext;
         s3BucketUtils = new S3BucketUtils(s3Path, this.s3Client);
+        sqsUtils = new SqsUtils(amazonSQS, configuration["SqsUrl"] ?? throw new Exception("No SqsUrl found in appsettings"));
 
         dbContext.Database.EnsureCreated();
     }
@@ -101,6 +106,8 @@ public class ImagesController : ControllerBase
             FileExtension = Path.GetExtension(file.FileName),
             LastUpdate = DateTime.UtcNow
         };
+
+        await sqsUtils.SendImage(metadata.ToMetaDataResponse());
 
         dbContext.Images.Add(metadata);
         await dbContext.SaveChangesAsync();
