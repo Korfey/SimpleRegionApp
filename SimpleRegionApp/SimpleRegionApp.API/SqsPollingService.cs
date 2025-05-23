@@ -31,6 +31,12 @@ public class SqsPollingService(
 
             var response = await sqsClient.ReceiveMessageAsync(receiveRequest, stoppingToken);
 
+            if (response.Messages is null)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(60), stoppingToken);
+                continue;
+            }
+
             foreach (var message in response.Messages)
             {
                 try
@@ -49,7 +55,6 @@ public class SqsPollingService(
                     // Do nothing
                 }
             }
-            await Task.Delay(TimeSpan.FromSeconds(30), stoppingToken);
         }
     }
 
