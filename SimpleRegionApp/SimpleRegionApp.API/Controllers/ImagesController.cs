@@ -11,6 +11,7 @@ using Amazon.S3;
 using Amazon.SQS;
 using Amazon.Lambda;
 using Amazon.Lambda.Model;
+using System.Text.Json;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -155,15 +156,35 @@ public class ImagesController : ControllerBase
     }
 
     [HttpGet("consistency-check")]
-    public async Task<ActionResult<InvokeResponse>> CheckConsistency()
+    public async Task<ActionResult<object>> CheckConsistency()
     {
-        var invokeRequest = new InvokeRequest
+        try
         {
-            FunctionName = LambdaFunctionArn,
-            InvocationType = InvocationType.RequestResponse,
-            Payload = "{\"detail-type\":\"WebApplicationEndpoint\"}"
-        };
+            var invokeRequest = new InvokeRequest
+            {
+                FunctionName = LambdaFunctionArn,
+                InvocationType = InvocationType.RequestResponse,
+                Payload = "{\"detail-type\":\"WebApplicationEndpoint\"}"
+            };
 
-        return await lambdaClient.InvokeAsync(invokeRequest);
+            var invokeResponse = await lambdaClient.InvokeAsync(invokeRequest);
+
+            if (invokeResponse.StatusCode != 200)
+            {
+                return StatusCode((int)invokeResponse.StatusCode, "Error invoking Lambda function.");
+            }
+
+            using var reader = new StreamReader(invokeResponse.Payload);
+            var responsePayload = await reader.ReadToEndAsync();
+
+            var parsedResponse = JsonSerializer.Deserialize<object>(responsePayload);
+
+            return Ok(parsedResponse);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error: {ex.Message}");
+            return StatusCode(500, new { error = "Internal Server Error", details = ex.Message });
+        }
     }
 }
