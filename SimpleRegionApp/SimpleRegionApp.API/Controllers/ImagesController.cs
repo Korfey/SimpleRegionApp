@@ -12,6 +12,7 @@ using Amazon.SQS;
 using Amazon.Lambda;
 using Amazon.Lambda.Model;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -156,7 +157,7 @@ public class ImagesController : ControllerBase
     }
 
     [HttpGet("consistency-check")]
-    public async Task<ActionResult<object>> CheckConsistency()
+    public async Task<ActionResult> CheckConsistency()
     {
         try
         {
@@ -169,7 +170,7 @@ public class ImagesController : ControllerBase
 
             var invokeResponse = await lambdaClient.InvokeAsync(invokeRequest);
 
-            if (invokeResponse.StatusCode != 200)
+            if (invokeResponse.StatusCode != 200 && invokeResponse.StatusCode != 400)
             {
                 return StatusCode((int)invokeResponse.StatusCode, "Error invoking Lambda function.");
             }
@@ -177,9 +178,13 @@ public class ImagesController : ControllerBase
             using var reader = new StreamReader(invokeResponse.Payload);
             var responsePayload = await reader.ReadToEndAsync();
 
-            var parsedResponse = JsonSerializer.Deserialize<object>(responsePayload);
+            var lambdaResponse = JsonSerializer.Deserialize<JsonObject>(responsePayload);
+            if (lambdaResponse != null && lambdaResponse.TryGetPropertyValue("body", out var body))
+            {
+                return Content(body.ToString(), "application/json");
+            }
 
-            return Ok(parsedResponse);
+            return StatusCode(500, "Invalid response from Lambda function.");
         }
         catch (Exception ex)
         {
