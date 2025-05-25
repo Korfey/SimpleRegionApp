@@ -6,9 +6,11 @@ using Amazon.SQS.Model;
 using SimpleRegionApp.API.Models.DTO;
 using System.Text.Json;
 using System.Threading;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace SimpleRegionApp.API;
 
+// Deprecated
 public class SqsPollingService(
     IConfiguration config,
     IAmazonSQS sqsClient,
@@ -16,7 +18,6 @@ public class SqsPollingService(
 {
     private readonly string SqsUrl = config["SqsUrl"] ?? throw new Exception("No SqsUrl found in appsettings");
     private readonly string SnsArn = config["SnsArn"] ?? throw new Exception("No SnsArn found in appsettings");
-    private readonly string albEndpoint = Environment.GetEnvironmentVariable("ALB_ENDPOINT") ?? throw new Exception("ALB_ENDPOINT not set");
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -41,7 +42,7 @@ public class SqsPollingService(
             {
                 try
                 {
-                    var metadata = JsonSerializer.Deserialize<MetaDataResponse>(message.Body);
+                    var metadata = JsonSerializer.Deserialize<MetadataSqsDto>(message.Body);
                     string notificationMessage = BuildResponse(metadata);
                     
                     var publishRequest = BuildRequest(metadata, notificationMessage);
@@ -58,7 +59,7 @@ public class SqsPollingService(
         }
     }
 
-    private PublishRequest BuildRequest(MetaDataResponse? metadata, string notificationMessage)
+    private PublishRequest BuildRequest(MetadataSqsDto? metadata, string notificationMessage)
     {
         return new PublishRequest
         {
@@ -77,7 +78,7 @@ public class SqsPollingService(
         };
     }
 
-    private string BuildResponse(MetaDataResponse? metadata)
+    private string BuildResponse(MetadataSqsDto? metadata)
     {
         return
             $"""
@@ -86,7 +87,7 @@ public class SqsPollingService(
                 Image Size: {metadata.ImageSize} bytes
                 Image Extension: {metadata.FileExtension}
                 Image Upload Date: {metadata.LastUpdate}
-            Download link: {albEndpoint}/api/images/download/{metadata.Name}
+            Download link: {metadata.DownloadLink}
             """;
     }
 }

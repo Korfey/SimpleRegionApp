@@ -9,6 +9,8 @@ using SimpleRegionApp.API.Models.Mappers;
 using SimpleRegionApp.Models;
 using Amazon.S3;
 using Amazon.SQS;
+using Amazon.Lambda;
+using Amazon.Lambda.Model;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -18,20 +20,30 @@ public class ImagesController : ControllerBase
     private readonly SimpleDbContext dbContext;
     private readonly IAmazonS3 s3Client;
     private readonly IAmazonSQS amazonSQS;
+    private readonly IAmazonLambda lambdaClient;
     private readonly S3BucketUtils s3BucketUtils;
     private readonly SqsUtils sqsUtils;
+    private readonly string albEndpoint;
+    private readonly string LambdaFunctionArn;
 
-    public ImagesController(IConfiguration configuration, SimpleDbContext dbContext, IAmazonS3 s3Client, IAmazonSQS amazonSQS)
+    public ImagesController(IConfiguration configuration, SimpleDbContext dbContext, IAmazonS3 s3Client, IAmazonSQS amazonSQS, IAmazonLambda lambdaClient)
     {
         s3Path = configuration["s3Bucket"] ?? throw new Exception("No S3Path found in appsettings");
+        sqsUtils = new SqsUtils(amazonSQS, configuration["SqsUrl"]
+           ?? throw new Exception("No SqsUrl found in appsettings"));
+        LambdaFunctionArn = configuration["LambdaFunction"]
+            ?? throw new Exception("No LambdaFunction found in appsettings");
+        albEndpoint = System.Environment.GetEnvironmentVariable("ALB_ENDPOINT")
+            ?? throw new Exception("ALB_ENDPOINT not set");
 
         this.s3Client = s3Client;
         this.amazonSQS = amazonSQS;
+        this.lambdaClient = lambdaClient;
         this.dbContext = dbContext;
         s3BucketUtils = new S3BucketUtils(s3Path, this.s3Client);
-        sqsUtils = new SqsUtils(amazonSQS, configuration["SqsUrl"] ?? throw new Exception("No SqsUrl found in appsettings"));
-
+       
         dbContext.Database.EnsureCreated();
+        
     }
 
     /// <summary>
@@ -107,7 +119,15 @@ public class ImagesController : ControllerBase
             LastUpdate = DateTime.UtcNow
         };
 
-        await sqsUtils.SendImage(metadata.ToMetaDataResponse());
+        var sqsDto = new MetadataSqsDto(
+            metadata.Name,
+            metadata.ImageSize,
+            metadata.FileExtension,
+            metadata.LastUpdate,
+            $"{albEndpoint}/api/images/download/{Uri.EscapeDataString(metadata.Name)}"
+        );
+
+        await sqsUtils.SendImage(sqsDto);
 
         dbContext.Images.Add(metadata);
         await dbContext.SaveChangesAsync();
@@ -132,5 +152,18 @@ public class ImagesController : ControllerBase
         await dbContext.SaveChangesAsync();
 
         return Ok(new { Message = "Image deleted successfully."});
+    }
+
+    [HttpGet("consistency-check")]
+    public async Task<ActionResult<InvokeResponse>> CheckConsistency()
+    {
+        var invokeRequest = new InvokeRequest
+        {
+            FunctionName = LambdaFunctionArn,
+            InvocationType = InvocationType.RequestResponse,
+            Payload = "{\"detail-type\":\"WebApplicationEndpoint\"}"
+        };
+
+        return await lambdaClient.InvokeAsync(invokeRequest);
     }
 }

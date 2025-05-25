@@ -1,4 +1,5 @@
 using Amazon;
+using Amazon.Lambda;
 using Amazon.RDS;
 using Amazon.S3;
 using Amazon.SimpleNotificationService;
@@ -32,7 +33,8 @@ namespace SimpleRegionApp.API
             });
             services.AddSingleton<IAmazonSimpleNotificationService, AmazonSimpleNotificationServiceClient>();
             services.AddSingleton<IAmazonSQS, AmazonSQSClient>();
-            services.AddHostedService<SqsPollingService>();
+            services.AddSingleton<IAmazonLambda, AmazonLambdaClient>();
+            // services.AddHostedService<SqsPollingService>(); Moved to Lambda function
 
             var app = builder.Build();
             
